@@ -120,10 +120,20 @@ def main():
    if rid and rid not in allowed_routes:continue
    stops=update.get('stopTimeUpdate',update.get('stop_time_update',[]))
    delays=[]
+   events=[]
    for v in stops:
-    a=v.get('arrival') or v.get('departure') or {}
-    if isinstance(a,dict) and isinstance(a.get('delay'),(int,float)):delays.append({'stop_id':v.get('stopId',v.get('stop_id')),'delay_seconds':a['delay']})
-   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s,'source':'Renfe GTFS-RT','trip_id':tid})
+    sid=v.get('stopId',v.get('stop_id'))
+    for kind in ('arrival','departure'):
+     a=v.get(kind) or {}
+     if not isinstance(a,dict):continue
+     event={'stop_id':sid,'event':kind}
+     for name in ('delay','time','uncertainty'):
+      value=a.get(name)
+      if isinstance(value,(int,float)):event[name]=value
+     if len(event)>2:
+      events.append(event)
+      if isinstance(event.get('delay'),(int,float)):delays.append({'stop_id':sid,'event':kind,'delay_seconds':event['delay']})
+   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s,'source':'Renfe GTFS-RT','trip_id':tid,'events':events,'feed_timestamp':update.get('timestamp')})
   folder=P/'observations';folder.mkdir(exist_ok=True)
   if results:
    with (folder/(day+'.jsonl')).open('a') as f:
