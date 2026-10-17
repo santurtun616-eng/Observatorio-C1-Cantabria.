@@ -75,6 +75,9 @@ def schedule():
     k=d+'|'+s['trip_id']
     if k in result:result[k]['stops'].append({'stop':stopnames.get(s['stop_id'],s['stop_id']),'id':s['stop_id'],'seq':int(s['stop_sequence']),'arrival':s.get('arrival_time',''),'departure':s.get('departure_time','')})
   for t in result.values():t['stops'].sort(key=lambda s:s['seq'])
+  if not result:
+   samples=[{'service_id':k,'fields':list(v.keys()),'start_date':v.get('start_date'),'end_date':v.get('end_date')} for k,v in list(calendar.items())[:5]]
+   raise RuntimeError('No hay circulaciones C1 activas en el calendario GTFS para hoy ni mañana. calendar_records='+str(len(calendar))+'; calendar_dates_records='+str(len(exceptions))+'; selected_trips='+str(len(chosen))+'; calendar_sample='+json.dumps(samples,ensure_ascii=False))
   cache=P/'schedule.json'
   old=json.loads(cache.read_text()) if cache.exists() else {}
   for k,v in result.items():old.setdefault(k,v)
@@ -84,7 +87,9 @@ def schedule():
   return old
 def main():
  try:
-  s=schedule() if not (P/'schedule.json').exists() or now.hour==3 else json.loads((P/'schedule.json').read_text())
+  cache=P/'schedule.json'
+  s=schedule() if not cache.exists() or cache.stat().st_size < 5 or now.hour==3 else json.loads(cache.read_text())
+  if not s:raise RuntimeError('Calendario GTFS vacío: no se puede identificar la C1 ni garantizar registros fiables')
   url=os.getenv('TRIP_UPDATES_JSON_URL') or resolve('horarios-viaje-cercanias','trip_updates.json')
   payload=fetch(url).json()
   entities=payload.get('entity',payload.get('entities',[]))
