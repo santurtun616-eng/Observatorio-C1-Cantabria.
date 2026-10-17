@@ -1,0 +1,3 @@
+{"key": "20261017|6288S26943C1", "captured_at": "2026-10-17T20:43:20.460892+02:00", "status": "SCHEDULED", "delays": [{"stop_id": "14211", "delay_seconds": 0}], "kind": "GTFS-RT estimación/no llegada real", "calendar_matched": false}
+{"key": "20261017|6288S26939C1", "captured_at": "2026-10-17T20:43:20.460892+02:00", "status": "SCHEDULED", "delays": [{"stop_id": "14219", "delay_seconds": 1320}], "kind": "GTFS-RT estimación/no llegada real", "calendar_matched": false}
+{"key": "20261017|6288S26947C1", "captured_at": "2026-10-17T20:43:20.460892+02:00", "status": "SCHEDULED", "delays": [{"stop_id": "14203", "delay_seconds": 180}], "kind": "GTFS-RT estimación/no llegada real", "calendar_matched": false}
