@@ -68,7 +68,7 @@ def schedule():
     override=exceptions.get((d,service))
     if override:return override=='1'
     c=calendar.get(service)
-    return bool(c and c['start_date']<=d<=c['end_date'] and c.get(weekday)=='1')
+    return bool(c and c.get('start_date') and c.get('end_date') and c['start_date']<=d<=c['end_date'] and c.get(weekday)=='1')
    for tripid,t in chosen.items():
     if active(t['service_id']):result[d+'|'+tripid]={'day':d,'trip':tripid,'headsign':t.get('trip_headsign',''),'route':t['route_id'],'stops':[]}
    for s in stop_times:
