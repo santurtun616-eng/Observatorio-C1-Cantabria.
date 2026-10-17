@@ -29,20 +29,29 @@ def schedule():
  with zipfile.ZipFile(io.BytesIO(blob)) as z:
   routes=rows(z,'routes.txt');trips=rows(z,'trips.txt');stops=rows(z,'stops.txt')
   stopnames={x['stop_id']:x.get('stop_name','') for x in stops}
-  # Renfe puede publicar el identificador como C1 o C-1.
-  def line_label(value):return ''.join(ch for ch in str(value).upper() if ch.isalnum())
-  candidates={x['route_id'] for x in routes if line_label(x.get('route_short_name',''))=='C1'}
-  trip_routes={t['trip_id']:t['route_id'] for t in trips if t['route_id'] in candidates}
-  stop_times=rows(z,'stop_times.txt');rs={}
+  # Identificar primero por recorrido real; la etiqueta comercial C1 puede
+  # no aparecer como route_short_name en el GTFS.
+  def normalise(value):
+   import unicodedata
+   return ''.join(ch for ch in unicodedata.normalize('NFKD',str(value).upper()) if ch.isalnum() and not unicodedata.combining(ch))
+  stop_times=rows(z,'stop_times.txt')
+  trip_route={t['trip_id']:t['route_id'] for t in trips}
+  route_stops={}
   for s in stop_times:
-   if s['trip_id'] in trip_routes:rs.setdefault(trip_routes[s['trip_id']],set()).add(s['stop_id'])
+   route=trip_route.get(s['trip_id'])
+   if route is not None:route_stops.setdefault(route,set()).add(s['stop_id'])
+  route_names={r['route_id']:r for r in routes}
   selected=set()
-  for route,ids in rs.items():
-   names=' '.join(stopnames.get(x,'').lower() for x in ids)
-   if 'santander' in names and 'reinosa' in names:selected.add(route)
+  for route,ids in route_stops.items():
+   names={normalise(stopnames.get(x,'')) for x in ids}
+   if 'SANTANDER' in names and 'REINOSA' in names:
+    selected.add(route)
   if not selected:
-   preview=[{'id':r.get('route_id'), 'short':r.get('route_short_name'), 'long':r.get('route_long_name')} for r in routes if r['route_id'] in candidates][:15]
-   raise RuntimeError('No se puede acreditar ruta C1 Santander–Reinosa. Rutas candidatas: '+json.dumps(preview,ensure_ascii=False)+'; coincidencias con estaciones en dichas rutas: '+json.dumps({k:sorted({stopnames.get(s,'') for s in v if 'santander' in stopnames.get(s,'').lower() or 'reinosa' in stopnames.get(s,'').lower()}) for k,v in rs.items()},ensure_ascii=False))
+   preview=[{'id':r.get('route_id'),'short':r.get('route_short_name'),'long':r.get('route_long_name')} for r in routes if 'C1' in normalise(' '.join(str(r.get(k,'')) for k in ('route_id','route_short_name','route_long_name')))][:30]
+   near={str(route): sorted({stopnames.get(s,'') for s in ids if 'SANTANDER' in normalise(stopnames.get(s,'')) or 'REINOSA' in normalise(stopnames.get(s,''))}) for route,ids in route_stops.items()}
+   near={k:v for k,v in near.items() if v}
+   raise RuntimeError('GTFS sin recorrido acreditado Santander–Reinosa; no se guardan datos de otra línea. Rutas C1: '+json.dumps(preview,ensure_ascii=False)+'; rutas con estaciones relevantes: '+json.dumps(near,ensure_ascii=False))
+  print('Rutas Santander–Reinosa identificadas por paradas: '+json.dumps([{'id':r,'short':route_names.get(r,{}).get('route_short_name'),'long':route_names.get(r,{}).get('route_long_name')} for r in sorted(selected)],ensure_ascii=False))
   chosen={t['trip_id']:t for t in trips if t['route_id'] in selected}
   calendar={}
   try:
