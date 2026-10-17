@@ -25,7 +25,7 @@ for filename in sorted(folder.glob('*.jsonl')) if folder.exists() else []:
    si=schedule.get(key,{})
    meta=known.get(tid,{})
    stops=si.get('stops',[])
-   previous={'trip':tid,'train':(re.search(r'269\\d{2}',tid).group(0) if re.search(r'269\\d{2}',tid) else tid),'origin':(stops[0].get('stop') if stops else meta.get('origin')) or 'Sin determinar','destination':(stops[-1].get('stop') if stops else meta.get('destination')) or 'Sin determinar','max_delay_seconds':None,'latest_delay_seconds':None,'captured_at':o.get('captured_at',''),'observations':0,'calendar_matched':bool(o.get('calendar_matched')),'cancelled_reported':False}
+   previous={'trip':tid,'train':(re.search(r'269[0-9]{2}',tid).group(0) if re.search(r'269[0-9]{2}',tid) else tid),'origin':(stops[0].get('stop') if stops else meta.get('origin')) or 'Sin determinar','destination':(stops[-1].get('stop') if stops else meta.get('destination')) or 'Sin determinar','max_delay_seconds':None,'latest_delay_seconds':None,'captured_at':o.get('captured_at',''),'observations':0,'calendar_matched':bool(o.get('calendar_matched')),'cancelled_reported':False}
    days[day][key]=previous
   previous['observations']+=1
   previous['calendar_matched']=previous['calendar_matched'] or bool(o.get('calendar_matched'))
