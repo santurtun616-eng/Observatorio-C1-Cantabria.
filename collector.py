@@ -78,8 +78,16 @@ def schedule():
   if not result:
    samples=[{'service_id':k,'fields':list(v.keys()),'start_date':v.get('start_date'),'end_date':v.get('end_date')} for k,v in list(calendar.items())[:5]]
    print('AVISO: calendario GTFS sin servicios activos para hoy/mañana. Se conservará el catálogo de rutas/trenes C1 y solo se recogerán observaciones identificadas por el GTFS; NO se considerará una ausencia como supresión. Diagnóstico: '+json.dumps({'calendar_records':len(calendar),'calendar_dates_records':len(exceptions),'selected_trips':len(chosen),'calendar_sample':samples},ensure_ascii=False))
-  # Identificadores acreditados por las paradas Santander y Reinosa, aunque el calendario esté obsoleto.
-  (P/'c1_index.json').write_text(json.dumps({'route_ids':sorted(selected),'trip_ids':sorted(chosen)},ensure_ascii=False))
+  # Índice verificable por viaje, incluida la sucesión real de paradas.
+  trip_stops={}
+  for s in stop_times:
+   tid=s['trip_id']
+   if tid in chosen:trip_stops.setdefault(tid,[]).append(s)
+  trip_info={}
+  for tid,t in chosen.items():
+   ss=sorted(trip_stops.get(tid,[]),key=lambda x:int(x['stop_sequence']))
+   trip_info[tid]={'route':t['route_id'],'service_id':t['service_id'],'headsign':t.get('trip_headsign',''),'origin':stopnames.get(ss[0]['stop_id'],'') if ss else '', 'destination':stopnames.get(ss[-1]['stop_id'],'') if ss else '', 'stops':[{'id':s['stop_id'],'name':stopnames.get(s['stop_id'],'')} for s in ss]}
+  (P/'c1_index.json').write_text(json.dumps({'route_ids':sorted(selected),'trip_ids':sorted(chosen),'trips':trip_info,'calendar_covered':bool(result)},ensure_ascii=False))
   cache=P/'schedule.json'
   old=json.loads(cache.read_text()) if cache.exists() else {}
   for k,v in result.items():old.setdefault(k,v)
@@ -115,7 +123,7 @@ def main():
    for v in stops:
     a=v.get('arrival') or v.get('departure') or {}
     if isinstance(a,dict) and isinstance(a.get('delay'),(int,float)):delays.append({'stop_id':v.get('stopId',v.get('stop_id')),'delay_seconds':a['delay']})
-   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s})
+   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s,'source':'Renfe GTFS-RT','trip_id':tid})
   folder=P/'observations';folder.mkdir(exist_ok=True)
   if results:
    with (folder/(day+'.jsonl')).open('a') as f:
