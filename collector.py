@@ -77,7 +77,9 @@ def schedule():
   for t in result.values():t['stops'].sort(key=lambda s:s['seq'])
   if not result:
    samples=[{'service_id':k,'fields':list(v.keys()),'start_date':v.get('start_date'),'end_date':v.get('end_date')} for k,v in list(calendar.items())[:5]]
-   raise RuntimeError('No hay circulaciones C1 activas en el calendario GTFS para hoy ni mañana. calendar_records='+str(len(calendar))+'; calendar_dates_records='+str(len(exceptions))+'; selected_trips='+str(len(chosen))+'; calendar_sample='+json.dumps(samples,ensure_ascii=False))
+   print('AVISO: calendario GTFS sin servicios activos para hoy/mañana. Se conservará el catálogo de rutas/trenes C1 y solo se recogerán observaciones identificadas por el GTFS; NO se considerará una ausencia como supresión. Diagnóstico: '+json.dumps({'calendar_records':len(calendar),'calendar_dates_records':len(exceptions),'selected_trips':len(chosen),'calendar_sample':samples},ensure_ascii=False))
+  # Identificadores acreditados por las paradas Santander y Reinosa, aunque el calendario esté obsoleto.
+  (P/'c1_index.json').write_text(json.dumps({'route_ids':sorted(selected),'trip_ids':sorted(chosen)},ensure_ascii=False))
   cache=P/'schedule.json'
   old=json.loads(cache.read_text()) if cache.exists() else {}
   for k,v in result.items():old.setdefault(k,v)
@@ -88,8 +90,13 @@ def schedule():
 def main():
  try:
   cache=P/'schedule.json'
-  s=schedule() if not cache.exists() or cache.stat().st_size < 5 or now.hour==3 else json.loads(cache.read_text())
-  if not s:raise RuntimeError('Calendario GTFS vacío: no se puede identificar la C1 ni garantizar registros fiables')
+  index=P/'c1_index.json'
+  s=schedule() if not cache.exists() or cache.stat().st_size < 5 or not index.exists() or now.hour==3 else json.loads(cache.read_text())
+  if not index.exists():raise RuntimeError('Índice de rutas C1 inexistente; no se guardarán observaciones de otras líneas')
+  allowed=json.loads(index.read_text())
+  allowed_trips=set(allowed.get('trip_ids',[]))
+  allowed_routes=set(allowed.get('route_ids',[]))
+  if not allowed_trips or not allowed_routes:raise RuntimeError('Índice C1 sin identificadores verificables')
   url=os.getenv('TRIP_UPDATES_JSON_URL') or resolve('horarios-viaje-cercanias','trip_updates.json')
   payload=fetch(url).json()
   entities=payload.get('entity',payload.get('entities',[]))
@@ -99,18 +106,21 @@ def main():
    update=e.get('tripUpdate',e.get('trip_update',{}))
    tr=update.get('trip',{});tid=tr.get('tripId',tr.get('trip_id',''))
    d=tr.get('startDate',tr.get('start_date',day));key=d+'|'+tid
-   if key not in s:continue
+   rid=tr.get('routeId',tr.get('route_id',''))
+   # La ruta y el trip_id deben estar acreditados por el recorrido; route_id por sí solo no demuestra el itinerario completo.
+   if key not in s and tid not in allowed_trips:continue
+   if rid and rid not in allowed_routes:continue
    stops=update.get('stopTimeUpdate',update.get('stop_time_update',[]))
    delays=[]
    for v in stops:
     a=v.get('arrival') or v.get('departure') or {}
     if isinstance(a,dict) and isinstance(a.get('delay'),(int,float)):delays.append({'stop_id':v.get('stopId',v.get('stop_id')),'delay_seconds':a['delay']})
-   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT predicción'})
+   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s})
   folder=P/'observations';folder.mkdir(exist_ok=True)
   if results:
    with (folder/(day+'.jsonl')).open('a') as f:
     for result in results:f.write(json.dumps(result,ensure_ascii=False)+'\n')
-  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'error':None}
+  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'calendar_matched':sum(1 for v in results if v['calendar_matched']),'calendar_unmatched':sum(1 for v in results if not v['calendar_matched']),'error':None}
   print(status)
  except Exception as exc:
   status={'checked_at':now.isoformat(),'error':str(exc)}
