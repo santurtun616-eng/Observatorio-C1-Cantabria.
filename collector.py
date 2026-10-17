@@ -29,7 +29,9 @@ def schedule():
  with zipfile.ZipFile(io.BytesIO(blob)) as z:
   routes=rows(z,'routes.txt');trips=rows(z,'trips.txt');stops=rows(z,'stops.txt')
   stopnames={x['stop_id']:x.get('stop_name','') for x in stops}
-  candidates={x['route_id'] for x in routes if x.get('route_short_name','').strip().upper()=='C1'}
+  # Renfe puede publicar el identificador como C1 o C-1.
+  def line_label(value):return ''.join(ch for ch in str(value).upper() if ch.isalnum())
+  candidates={x['route_id'] for x in routes if line_label(x.get('route_short_name',''))=='C1'}
   trip_routes={t['trip_id']:t['route_id'] for t in trips if t['route_id'] in candidates}
   stop_times=rows(z,'stop_times.txt');rs={}
   for s in stop_times:
@@ -38,7 +40,9 @@ def schedule():
   for route,ids in rs.items():
    names=' '.join(stopnames.get(x,'').lower() for x in ids)
    if 'santander' in names and 'reinosa' in names:selected.add(route)
-  if not selected:raise RuntimeError('No se puede acreditar ruta C1 Santander–Reinosa')
+  if not selected:
+   preview=[{'id':r.get('route_id'), 'short':r.get('route_short_name'), 'long':r.get('route_long_name')} for r in routes if r['route_id'] in candidates][:15]
+   raise RuntimeError('No se puede acreditar ruta C1 Santander–Reinosa. Rutas candidatas: '+json.dumps(preview,ensure_ascii=False)+'; coincidencias con estaciones en dichas rutas: '+json.dumps({k:sorted({stopnames.get(s,'') for s in v if 'santander' in stopnames.get(s,'').lower() or 'reinosa' in stopnames.get(s,'').lower()}) for k,v in rs.items()},ensure_ascii=False))
   chosen={t['trip_id']:t for t in trips if t['route_id'] in selected}
   calendar={}
   try:
