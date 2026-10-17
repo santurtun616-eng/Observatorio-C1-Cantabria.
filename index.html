@@ -7,7 +7,7 @@ fetch('data/dashboard.json?t='+Date.now()).then(r=>{if(!r.ok)throw Error('Sin da
  function paint(){const v=days[+$('day').value];if(!v){$('cards').innerHTML='<div class="card">No hay datos recogidos todavía.</div>';$('rows').innerHTML='';return}
  const cs=[['Circulaciones observadas',fmt(v.observed_trains)],['Con previsión disponible',fmt(v.observed_with_delay)],['Cobertura parcial',v.coverage_pct==null?'Sin dato':v.coverage_pct+' %'],['Máxima demora >5 min',fmt(v.over_5min)]];
  $('cards').innerHTML=cs.map(c=>'<div class="card"><div class="number">'+c[1]+'</div><small>'+c[0]+'</small></div>').join('');
- $('rows').innerHTML=v.ranking.map(t=>'<tr><td>'+esc(t.trip)+'</td><td>'+esc(t.origin)+' → '+esc(t.destination)+'</td><td class="warn">'+(t.max_delay_seconds==null?'Sin dato':mins(t.max_delay_seconds))+'</td><td>'+esc(t.captured_at)+'</td></tr>').join('')||'<tr><td colspan="4">Sin observaciones verificadas</td></tr>';
+ $('rows').innerHTML=v.ranking.map(t=>'<tr><td>'+esc(t.train||t.trip)+'</td><td>'+esc(t.origin)+' → '+esc(t.destination)+'</td><td class="warn">'+(t.max_delay_seconds==null?'Sin dato':mins(t.max_delay_seconds))+'</td><td>'+esc(t.captured_at)+'</td></tr>').join('')||'<tr><td colspan="4">Sin observaciones verificadas</td></tr>';
  }function esc(v){return String(v||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
  $('day').onchange=paint;$('day').value=String(days.length-1);paint();
  const months=d.months||[]; $('month').innerHTML=months.map((m,i)=>'<option value="'+i+'">'+m.month.slice(4,6)+'/'+m.month.slice(0,4)+'</option>').join('');
