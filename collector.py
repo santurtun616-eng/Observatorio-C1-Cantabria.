@@ -90,7 +90,7 @@ def schedule():
   trip_info={}
   for tid,t in chosen.items():
    ss=sorted(trip_stops.get(tid,[]),key=lambda x:x['_safe_sequence'])
-   trip_info[tid]={'route':t['route_id'],'service_id':t['service_id'],'headsign':t.get('trip_headsign',''),'origin':stopnames.get(ss[0]['stop_id'],'') if ss else '', 'destination':stopnames.get(ss[-1]['stop_id'],'') if ss else '', 'stops':[{'id':s['stop_id'],'name':stopnames.get(s['stop_id'],'')} for s in ss]}
+   trip_info[tid]={'route':t['route_id'],'service_id':t['service_id'],'headsign':t.get('trip_headsign',''),'origin':stopnames.get(ss[0]['stop_id'],'') if ss else '', 'destination':stopnames.get(ss[-1]['stop_id'],'') if ss else '', 'stops':[{'id':s['stop_id'],'name':stopnames.get(s['stop_id'],''),'seq':s['_safe_sequence'],'arrival':s.get('arrival_time',''),'departure':s.get('departure_time','')} for s in ss]}
   (P/'c1_index.json').write_text(json.dumps({'route_ids':sorted(selected),'trip_ids':sorted(chosen),'trips':trip_info,'calendar_covered':bool(result)},ensure_ascii=False))
   cache=P/'schedule.json'
   old=json.loads(cache.read_text()) if cache.exists() else {}
@@ -103,7 +103,13 @@ def main():
  try:
   cache=P/'schedule.json'
   index=P/'c1_index.json'
-  s=schedule() if not cache.exists() or cache.stat().st_size < 5 or not index.exists() or now.hour==3 else json.loads(cache.read_text())
+  # Migración: reconstruir un índice antiguo sin horas previstas de las paradas.
+  missing_times = True
+  if index.exists():
+   oldidx=json.loads(index.read_text())
+   sample=next(iter(oldidx.get('trips',{}).values()),{})
+   missing_times=bool(sample.get('stops')) and 'arrival' not in sample['stops'][0]
+  s=schedule() if not cache.exists() or cache.stat().st_size < 5 or not index.exists() or missing_times or now.hour==3 else json.loads(cache.read_text())
   if not index.exists():raise RuntimeError('Índice de rutas C1 inexistente; no se guardarán observaciones de otras líneas')
   allowed=json.loads(index.read_text())
   allowed_trips=set(allowed.get('trip_ids',[]))
@@ -139,10 +145,38 @@ def main():
       if isinstance(event.get('delay'),(int,float)):delays.append({'stop_id':sid,'event':kind,'delay_seconds':event['delay']})
    results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s,'source':'Renfe GTFS-RT','trip_id':tid,'events':events,'feed_timestamp':update.get('timestamp')})
   folder=P/'observations';folder.mkdir(exist_ok=True)
+  # El calendario del GTFS de Renfe puede faltar o no abarcar la fecha actual.
+  # Un trip_id exacto publicado por GTFS-RT permite identificar su service_id
+  # en GTFS estático. La relación prueba el servicio observado, pero NO acredita
+  # que todos los viajes del grupo circularan ni su puntualidad final.
+  inferred_file=P/'inferred_services.json'
+  inferred=json.loads(inferred_file.read_text()) if inferred_file.exists() else {}
+  weekday_codes=('L','M','X','J','V','S','D')
+  newly_inferred=0
+  for result in results:
+   obs_day,tid=result['key'].split('|',1)
+   meta=allowed['trips'].get(tid,{})
+   sid=meta.get('service_id','')
+   try: correct_day=sid.endswith(weekday_codes[dt.datetime.strptime(obs_day,'%Y%m%d').weekday()])
+   except ValueError: correct_day=False
+   if not correct_day:continue
+   if sid not in inferred.setdefault(obs_day,[]):inferred[obs_day].append(sid)
+  for obs_day,services in inferred.items():
+   for tid,meta in allowed['trips'].items():
+    if meta.get('service_id') not in services:continue
+    key=obs_day+'|'+tid
+    if key in s:continue
+    stops=meta.get('stops',[])
+    if not stops or 'arrival' not in stops[0]:continue
+    s[key]={'day':obs_day,'trip':tid,'headsign':meta.get('headsign',''),'route':meta['route'],'stops':[{'stop':v['name'],'id':v['id'],'seq':v.get('seq',i),'arrival':v.get('arrival',''),'departure':v.get('departure','')} for i,v in enumerate(stops)],'basis':'servicio deducido de trip_id GTFS-RT; calendario no acreditado'}
+    newly_inferred+=1
+  if newly_inferred:
+   cache.write_text(json.dumps(s,ensure_ascii=False))
+  inferred_file.write_text(json.dumps(inferred,ensure_ascii=False))
   if results:
    with (folder/(day+'.jsonl')).open('a') as f:
     for result in results:f.write(json.dumps(result,ensure_ascii=False)+'\n')
-  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'calendar_matched':sum(1 for v in results if v['calendar_matched']),'calendar_unmatched':sum(1 for v in results if not v['calendar_matched']),'error':None}
+  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'calendar_matched':sum(1 for v in results if v['calendar_matched']),'calendar_unmatched':sum(1 for v in results if not v['calendar_matched']),'inferred_services_today':inferred.get(day,[]),'inferred_scheduled_candidates':sum(1 for k in s if k.startswith(day+'|')),'schedule_basis':'calendario GTFS oficial o, si no existe, grupo de servicio acreditado por GTFS-RT; no equivalen','error':None}
   print(status)
  except Exception as exc:
   status={'checked_at':now.isoformat(),'error':str(exc)}
