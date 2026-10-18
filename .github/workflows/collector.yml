@@ -2,7 +2,7 @@ name: Captura C1
 on:
   workflow_dispatch:
   schedule:
-    - cron: '3-58/5 * * * *'
+    - cron: '3,33 * * * *'
   push:
     branches: [main]
     paths:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 35
     steps:
       - name: Código actualizado
         uses: actions/checkout@v4
@@ -52,8 +52,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           failed=0
-          for attempt in 1 2 3 4 5 6 7; do
-            echo "::group::Muestra ${attempt} de 7"
+          for attempt in 1 2 3 4 5 6; do
+            echo "::group::Muestra ${attempt} de 6"
             if ! python collector.py; then
               echo "::error::Error de captura en muestra ${attempt}"
               failed=1
@@ -69,7 +69,7 @@ jobs:
               git push origin HEAD:datos-c1
             fi
             echo "::endgroup::"
-            if [ "$attempt" -lt 7 ]; then
+            if [ "$attempt" -lt 6 ]; then
               sleep 300
             fi
           done
