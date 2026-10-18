@@ -143,7 +143,7 @@ def main():
      if len(event)>2:
       events.append(event)
       if isinstance(event.get('delay'),(int,float)):delays.append({'stop_id':sid,'event':kind,'delay_seconds':event['delay']})
-   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s,'source':'Renfe GTFS-RT','trip_id':tid,'events':events,'feed_timestamp':update.get('timestamp')})
+   results.append({'key':key,'captured_at':now.isoformat(),'status':tr.get('scheduleRelationship',tr.get('schedule_relationship','SCHEDULED')),'delays':delays,'kind':'GTFS-RT estimación/no llegada real','calendar_matched':key in s and 'basis' not in s[key],'schedule_linked':key in s,'source':'Renfe GTFS-RT','trip_id':tid,'events':events,'feed_timestamp':update.get('timestamp')})
   folder=P/'observations';folder.mkdir(exist_ok=True)
   # El calendario del GTFS de Renfe puede faltar o no abarcar la fecha actual.
   # Un trip_id exacto publicado por GTFS-RT permite identificar su service_id
@@ -176,7 +176,7 @@ def main():
   if results:
    with (folder/(day+'.jsonl')).open('a') as f:
     for result in results:f.write(json.dumps(result,ensure_ascii=False)+'\n')
-  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'calendar_matched':sum(1 for v in results if v['calendar_matched']),'calendar_unmatched':sum(1 for v in results if not v['calendar_matched']),'inferred_services_today':inferred.get(day,[]),'inferred_scheduled_candidates':sum(1 for k in s if k.startswith(day+'|')),'schedule_basis':'calendario GTFS oficial o, si no existe, grupo de servicio acreditado por GTFS-RT; no equivalen','error':None}
+  status={'checked_at':now.isoformat(),'feed_entities':len(entities),'c1_observations':len(results),'calendar_matched':sum(1 for v in results if v['calendar_matched']),'calendar_unmatched':sum(1 for v in results if not v['calendar_matched']),'schedule_linked':sum(1 for v in results if v['schedule_linked']),'inferred_services_today':inferred.get(day,[]),'inferred_scheduled_candidates':sum(1 for k in s if k.startswith(day+'|')),'schedule_basis':'calendario GTFS oficial o, si no existe, grupo de servicio acreditado por GTFS-RT; no equivalen','error':None}
   print(status)
  except Exception as exc:
   status={'checked_at':now.isoformat(),'error':str(exc)}
