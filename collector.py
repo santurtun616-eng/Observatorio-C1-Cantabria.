@@ -73,7 +73,7 @@ def schedule():
     if active(t['service_id']):result[d+'|'+tripid]={'day':d,'trip':tripid,'headsign':t.get('trip_headsign',''),'route':t['route_id'],'stops':[]}
    for s in stop_times:
     k=d+'|'+s['trip_id']
-    if k in result:result[k]['stops'].append({'stop':stopnames.get(s['stop_id'],s['stop_id']),'id':s['stop_id'],'seq':int(s['stop_sequence']),'arrival':s.get('arrival_time',''),'departure':s.get('departure_time','')})
+    if k in result:result[k]['stops'].append({'stop':stopnames.get(s['stop_id'],s['stop_id']),'id':s['stop_id'],'seq':s['_safe_sequence'],'arrival':s.get('arrival_time',''),'departure':s.get('departure_time','')})
   for t in result.values():t['stops'].sort(key=lambda s:s['seq'])
   if not result:
    samples=[{'service_id':k,'fields':list(v.keys()),'start_date':v.get('start_date'),'end_date':v.get('end_date')} for k,v in list(calendar.items())[:5]]
