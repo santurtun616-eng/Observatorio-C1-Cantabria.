@@ -1,17 +1,16 @@
 name: Captura C1
 on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
   push:
     branches: [main]
     paths:
       - 'collector.py'
       - 'report.py'
-      - 'index.html'
       - 'requirements.txt'
       - 'tests/**'
-      - '.github/workflows/**'
-  workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
+      - '.github/workflows/collector.yml'
 permissions:
   contents: write
 concurrency:
@@ -20,27 +19,48 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - name: Código actualizado
+        uses: actions/checkout@v4
+        with:
+          path: source
+          ref: main
+      - name: Histórico persistente separado de la web
+        uses: actions/checkout@v4
+        with:
+          path: storage
+          ref: datos-c1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install -r requirements.txt
-      - name: Pruebas automáticas
-        run: python -m unittest discover -s tests -v
+      - name: Dependencias
+        run: pip install -r source/requirements.txt
+      - name: Pruebas de análisis
+        run: python -m unittest discover -s source/tests -v
+      - name: Actualizar capturador con la versión del código principal
+        run: |
+          cp source/collector.py storage/collector.py
+          cp source/report.py storage/report.py
       - name: Captura oficial
+        working-directory: storage
         run: python collector.py
         env:
           GTFS_STATIC_URL: ${{ vars.GTFS_STATIC_URL }}
           TRIP_UPDATES_JSON_URL: ${{ vars.TRIP_UPDATES_JSON_URL }}
-      - name: Preparar cuadro de mando incluso si falla captura
+      - name: Generar informe aunque la captura dé error
         if: always()
+        working-directory: storage
         run: python report.py
-      - name: Conservar observaciones
+      - name: Guardar solamente observaciones en rama datos-c1
         if: always()
+        working-directory: storage
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/
-          git diff --cached --quiet || (git commit -m "Captura C1" && git push)
+          if ! git diff --cached --quiet; then
+            git commit -m "Datos C1"
+            git pull --rebase origin datos-c1
+            git push origin HEAD:datos-c1
+          fi
