@@ -35,6 +35,10 @@ def schedule():
    import unicodedata
    return ''.join(ch for ch in unicodedata.normalize('NFKD',str(value).upper()) if ch.isalnum() and not unicodedata.combining(ch))
   stop_times=rows(z,'stop_times.txt')
+  # Normalizar secuencia GTFS incluso si el campo falta o viene vacío.
+  for i,st in enumerate(stop_times):
+   try: st['_safe_sequence']=int(st.get('stop_sequence') or i)
+   except (TypeError,ValueError): st['_safe_sequence']=i
   trip_route={t['trip_id']:t['route_id'] for t in trips}
   route_stops={}
   for s in stop_times:
@@ -85,7 +89,7 @@ def schedule():
    if tid in chosen:trip_stops.setdefault(tid,[]).append(s)
   trip_info={}
   for tid,t in chosen.items():
-   ss=sorted(trip_stops.get(tid,[]),key=lambda x:int(x['stop_sequence']))
+   ss=sorted(trip_stops.get(tid,[]),key=lambda x:x['_safe_sequence'])
    trip_info[tid]={'route':t['route_id'],'service_id':t['service_id'],'headsign':t.get('trip_headsign',''),'origin':stopnames.get(ss[0]['stop_id'],'') if ss else '', 'destination':stopnames.get(ss[-1]['stop_id'],'') if ss else '', 'stops':[{'id':s['stop_id'],'name':stopnames.get(s['stop_id'],'')} for s in ss]}
   (P/'c1_index.json').write_text(json.dumps({'route_ids':sorted(selected),'trip_ids':sorted(chosen),'trips':trip_info,'calendar_covered':bool(result)},ensure_ascii=False))
   cache=P/'schedule.json'
