@@ -2,6 +2,13 @@ name: Captura C1
 on:
   push:
     branches: [main]
+    paths:
+      - 'collector.py'
+      - 'report.py'
+      - 'index.html'
+      - 'requirements.txt'
+      - 'tests/**'
+      - '.github/workflows/**'
   workflow_dispatch:
   schedule:
     - cron: '*/5 * * * *'
@@ -20,6 +27,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements.txt
+      - name: Pruebas automáticas
+        run: python -m unittest discover -s tests -v
       - name: Captura oficial
         run: python collector.py
         env:
