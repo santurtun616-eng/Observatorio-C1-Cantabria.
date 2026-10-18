@@ -2,7 +2,7 @@ name: Captura C1
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '3-58/5 * * * *'
   push:
     branches: [main]
     paths:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 40
     steps:
       - name: Código actualizado
         uses: actions/checkout@v4
@@ -42,25 +42,35 @@ jobs:
         run: |
           cp source/collector.py storage/collector.py
           cp source/report.py storage/report.py
-      - name: Captura oficial
+      - name: Recoger y guardar cada cinco minutos durante media hora
         working-directory: storage
-        run: python collector.py
         env:
           GTFS_STATIC_URL: ${{ vars.GTFS_STATIC_URL }}
           TRIP_UPDATES_JSON_URL: ${{ vars.TRIP_UPDATES_JSON_URL }}
-      - name: Generar informe aunque la captura dé error
-        if: always()
-        working-directory: storage
-        run: python report.py
-      - name: Guardar solamente observaciones en rama datos-c1
-        if: always()
-        working-directory: storage
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/
-          if ! git diff --cached --quiet; then
-            git commit -m "Datos C1"
-            git pull --rebase origin datos-c1
-            git push origin HEAD:datos-c1
-          fi
+          failed=0
+          for attempt in 1 2 3 4 5 6 7; do
+            echo "::group::Muestra ${attempt} de 7"
+            if ! python collector.py; then
+              echo "::error::Error de captura en muestra ${attempt}"
+              failed=1
+            fi
+            if ! python report.py; then
+              echo "::error::Error al generar el informe en muestra ${attempt}"
+              failed=1
+            fi
+            git add data/
+            if ! git diff --cached --quiet; then
+              git commit -m "Datos C1 - muestra ${attempt}"
+              git pull --rebase origin datos-c1
+              git push origin HEAD:datos-c1
+            fi
+            echo "::endgroup::"
+            if [ "$attempt" -lt 7 ]; then
+              sleep 300
+            fi
+          done
+          exit "$failed"
