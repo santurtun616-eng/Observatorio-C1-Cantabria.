@@ -53,14 +53,14 @@ months=defaultdict(list)
 for d in daily:months[d['day'][:6]].append(d)
 monthly=[]
 for month,arr in sorted(months.items()):
- unique=defaultdict(lambda:{'days':set(),'max_delay_seconds':None,'over_5min_days':0})
+ unique=defaultdict(lambda:{'days':set(),'max_delay_seconds':None,'over_5min_days':set()})
  for d in arr:
   for t in d['ranking']:
-   a=unique[t['trip']]
+   a=unique[t['train']]
    a['days'].add(d['day'])
    mx=t['max_delay_seconds']
    if mx is not None and (a['max_delay_seconds'] is None or mx>a['max_delay_seconds']):a['max_delay_seconds']=mx
-   if mx is not None and mx>300:a['over_5min_days']+=1
- worst=sorted(({'trip':tid,'observed_days':len(v['days']),'max_delay_seconds':v['max_delay_seconds'],'days_over_5min':v['over_5min_days']} for tid,v in unique.items()),key=lambda r:(r['days_over_5min'],r['max_delay_seconds'] if r['max_delay_seconds'] is not None else -1),reverse=True)
+   if mx is not None and mx>300:a['over_5min_days'].add(d['day'])
+ worst=sorted(({'trip':tid,'observed_days':len(v['days']),'max_delay_seconds':v['max_delay_seconds'],'days_over_5min':len(v['over_5min_days'])} for tid,v in unique.items()),key=lambda r:(r['days_over_5min'],r['max_delay_seconds'] if r['max_delay_seconds'] is not None else -1),reverse=True)
  monthly.append({'month':month,'days_observed':len(arr),'trains_observed':sum(d['observed_trains'] for d in arr),'over_5min':sum(d['over_5min'] for d in arr),'over_15min':sum(d['over_15min'] for d in arr),'cancelled_reported':sum(d['cancelled_reported'] for d in arr),'worst_trains':worst[:30]})
 (P/'dashboard.json').write_text(json.dumps({'generated_at':dt.datetime.now(dt.timezone.utc).isoformat(),'days':daily,'months':monthly,'status':load('status.json',{}),'methodology':'GTFS-RT Renfe: máxima demora prevista observada, no llegada real acreditada. Los grupos de servicios inferidos de GTFS-RT no son un calendario completo verificado. La ausencia de datos no demuestra puntualidad ni supresión.'},ensure_ascii=False),encoding='utf-8')
