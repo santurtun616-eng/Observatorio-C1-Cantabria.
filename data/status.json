@@ -1,1 +1,1 @@
-{"checked_at": "2026-11-03T17:28:42.682051+01:00", "error": "('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"}
+{"checked_at": "2026-11-03T17:33:50.876654+01:00", "feed_entities": 371, "c1_observations": 2, "calendar_matched": 0, "calendar_unmatched": 2, "schedule_linked": 2, "inferred_services_today": ["6206M"], "inferred_scheduled_candidates": 44, "schedule_basis": "calendario GTFS oficial o, si no existe, grupo de servicio acreditado por GTFS-RT; no equivalen", "error": null}
